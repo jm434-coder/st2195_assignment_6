@@ -1,0 +1,180 @@
+---
+title: "Practice Assignment 6"
+output: html_document
+date: "2025-05-27"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE,fig.width = 10,fig.height = 6)
+```
+
+```{r libraries}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(rstudioapi)
+library(tidytext)
+library(stopwords)
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+```
+
+```{r files}
+speeches <- read.csv("speeches.csv", header = TRUE, sep = "|")
+names(speeches) <- tolower(names(speeches))
+speeches <- speeches %>% select(date, contents)
+
+fx <- read.csv("fx.csv")
+names(fx) <- tolower(names(fx))
+names(fx)[3] <- "rate"
+
+```
+
+
+#Only keeping fx 
+```{r}
+
+#merge
+data <- left_join(fx, speeches, by = "date")
+data$date <- as.Date(data$date)
+
+#check for outliers
+boxplot(data$rate)
+
+ggplot(data, aes(x = date, y = rate)) +
+  geom_line() +
+  labs(x = "Date", y = "Rate", title = "EUR/USD reference exchange rate over Time") +
+  theme(
+      panel.grid.major = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(fill = "white"),
+      axis.line = element_line(color = "black")
+    )
+
+
+#handling missings
+sum(is.na(data$rate))
+
+data <- data %>%
+  arrange(date) %>% 
+  fill(rate, .direction = "down") %>%
+  filter(!is.na(rate))
+
+
+#exchange rate return
+
+#""exchange rate return" refers to the profit or loss experienced when investing in a currency due to changes in its exchange rate against another currency."
+
+data <- data %>%
+  arrange(date) %>%
+  mutate(
+    return = 100 * (rate / lag(rate) - 1), 
+    good_news = ifelse(return > 0.5, 1, 0),
+    bad_news = ifelse(return < -0.5, 1, 0)
+  )
+
+#remove NA contents
+data <- data %>% filter(!is.na(contents))
+
+
+#find words and remove articles... (i selected several languages)
+euro_words <- tibble(
+  word = c(stopwords("en"), stopwords("pt"), stopwords("es"), stopwords("fr"), stopwords("de")),
+  lexicon = "combined"
+)
+
+data_words <- data %>%
+  select(contents, good_news, bad_news) %>%
+  unnest_tokens(word, contents) %>%
+  anti_join(euro_words, by = "word")
+
+#good indicators
+good_indicators <- data_words %>%
+  filter(good_news == 1) %>%
+  count(word, sort = TRUE) %>% 
+  slice_head(n = 20)
+
+write.csv(good_indicators, "good_indicators.csv", row.names = FALSE)
+
+#bad indicators
+bad_indicators <- data_words %>%
+  filter(bad_news == 1) %>%
+  count(word, sort = TRUE) %>%
+  slice_head(n = 20)
+
+write.csv(bad_indicators, "bad_indicators.csv", row.names = FALSE)
+```
+
+
+#Keeping both
+```{r}
+
+#merge
+full_data <- full_join(fx, speeches, by = "date")
+data$date <- as.Date(data$date)
+
+#check for outliers
+boxplot(data$rate)
+
+ggplot(data, aes(x = date, y = rate)) +
+  geom_line() +
+  labs(x = "Date", y = "Rate", title = "EUR/USD reference exchange rate over Time") +
+  theme(
+      panel.grid.major = element_blank(), 
+      panel.grid.minor = element_blank(),
+      panel.background = element_rect(fill = "white"),
+      axis.line = element_line(color = "black")
+    )
+#handling missings
+sum(is.na(data$rate))
+
+data <- data %>%
+  arrange(date) %>% 
+  fill(rate, .direction = "down") %>%
+  filter(!is.na(rate))
+
+#exchange rate return
+
+#""exchange rate return" refers to the profit or loss experienced when investing in a currency due to changes in its exchange rate against another currency."
+
+data <- data %>%
+  arrange(date) %>%
+  mutate(
+    return = 100 * (rate / lag(rate) - 1), 
+    good_news = ifelse(return > 0.5, 1, 0),
+    bad_news = ifelse(return < -0.5, 1, 0)
+  )
+
+#remove NA contents
+data <- data %>% filter(!is.na(contents))
+
+
+#find words and remove articles... (i selected several languages)
+euro_words <- tibble(
+  word = c(stopwords("en"), stopwords("pt"), stopwords("es"), stopwords("fr"), stopwords("de")),
+  lexicon = "combined"
+)
+
+data_words <- data %>%
+  select(contents, good_news, bad_news) %>%
+  unnest_tokens(word, contents) %>%
+  anti_join(euro_words, by = "word")
+
+#good indicators
+good_indicators <- data_words %>%
+  filter(good_news == 1) %>%
+  count(word, sort = TRUE) %>% 
+  slice_head(n = 20)
+
+write.csv(good_indicators, "good_indicators.csv", row.names = FALSE)
+
+#bad indicators
+bad_indicators <- data_words %>%
+  filter(bad_news == 1) %>%
+  count(word, sort = TRUE) %>%
+  slice_head(n = 20)
+
+write.csv(bad_indicators, "bad_indicators.csv", row.names = FALSE)
+```
+
